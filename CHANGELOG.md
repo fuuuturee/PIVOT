@@ -26,5 +26,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Synthetic prefetch fixture generator and a 22-check regression suite
 - GitHub Actions build for release and debug
 
-[Unreleased]: https://github.com/OWNER/PIVOT/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/OWNER/PIVOT/releases/tag/v0.1.0
+[Unreleased]: compare/v0.1.0...HEAD
+[0.1.0]: releases/tag/v0.1.0
