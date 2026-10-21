@@ -41,7 +41,8 @@ if errorlevel 1 (
 cd /d "%~dp0"
 
 if /i "%MODE%"=="debug" (
-  set "OPT=/Od /Zi /D_DEBUG"
+  rem /MDd is required: _DEBUG pulls in the debug CRT symbols
+  set "OPT=/Od /Zi /D_DEBUG /MDd"
   set "OUT=bin\debug"
 ) else (
   rem static CRT so the released binary runs on any Windows 10+ without
