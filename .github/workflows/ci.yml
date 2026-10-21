@@ -1,0 +1,43 @@
+name: build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: windows (msvc ${{ matrix.mode }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [release, debug]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build (${{ matrix.mode }})
+        shell: cmd
+        run: build.bat ${{ matrix.mode }}
+
+      - name: Run regression tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          if ("${{ matrix.mode }}" -eq "release") {
+            & powershell -ExecutionPolicy Bypass -File tests\run_tests.ps1
+          } else {
+            # the debug build is only compiled, the tests run against release
+            & cmd /c "build.bat release"
+            & powershell -ExecutionPolicy Bypass -File tests\run_tests.ps1
+          }
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Upload binary
+        if: matrix.mode == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pivot-windows
+          path: bin/release/pivot.exe

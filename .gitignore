@@ -1,0 +1,26 @@
+# build output
+bin/
+obj/
+*.obj
+*.pdb
+*.ilk
+*.exe
+
+# case data / generated output
+*.store
+pivot.json
+pivot.json.jsonl
+*.jsonl
+evidence/
+cases/
+
+# editors
+.vs/
+.vscode/
+.idea/
+*.swp
+*~
+
+# os
+Thumbs.db
+desktop.ini
