@@ -18,21 +18,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up the MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Build (${{ matrix.mode }})
         shell: cmd
-        run: build.bat ${{ matrix.mode }}
+        run: |
+          build.bat ${{ matrix.mode }}
+          echo exit code: %ERRORLEVEL%
 
       - name: Run regression tests
+        if: matrix.mode == 'release'
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Continue"
-          if ("${{ matrix.mode }}" -eq "release") {
-            & powershell -ExecutionPolicy Bypass -File tests\run_tests.ps1
-          } else {
-            # the debug build is only compiled, the tests run against release
-            & cmd /c "build.bat release"
-            & powershell -ExecutionPolicy Bypass -File tests\run_tests.ps1
-          }
+          & powershell -ExecutionPolicy Bypass -File tests\run_tests.ps1
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Upload binary

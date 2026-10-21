@@ -1,25 +1,40 @@
 @echo off
 rem ---------------------------------------------------------------- PIVOT build
 rem Usage: build.bat [debug|release]
-setlocal
+rem
+rem Uses the MSVC environment that is already active (for example on GitHub
+rem Actions) and sets it up itself when it is not.
+setlocal enabledelayedexpansion
 
 set "MODE=%~1"
 if "%MODE%"=="" set "MODE=release"
 
-set "VSWHERE=C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat"
-if not exist "%VSWHERE%" (
-  for /d %%D in ("C:\Program Files\Microsoft Visual Studio\*") do (
-    if exist "%%~fD\VC\Auxiliary\Build\vcvars64.bat" set "VSWHERE=%%~fD\VC\Auxiliary\Build\vcvars64.bat"
+where cl >nul 2>&1
+if errorlevel 1 (
+  set "VSWHERE=C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat"
+  if not exist "!VSWHERE!" (
+    for /d %%D in ("C:\Program Files\Microsoft Visual Studio\*") do (
+      if exist "%%~fD\VC\Auxiliary\Build\vcvars64.bat" set "VSWHERE=%%~fD\VC\Auxiliary\Build\vcvars64.bat"
+    )
   )
-)
-if not exist "%VSWHERE%" (
-  echo [build] vcvars64.bat not found - install Visual Studio with C++ workload
-  exit /b 1
+  if not exist "!VSWHERE!" (
+    for /d %%D in ("C:\Program Files (x86)\Microsoft Visual Studio\*") do (
+      if exist "%%~fD\VC\Auxiliary\Build\vcvars64.bat" set "VSWHERE=%%~fD\VC\Auxiliary\Build\vcvars64.bat"
+    )
+  )
+  if not exist "!VSWHERE!" (
+    echo [build] vcvars64.bat not found - install Visual Studio with the C++ workload
+    exit /b 1
+  )
+  echo [build] setting up the MSVC environment from "!VSWHERE!"
+  call "!VSWHERE!" >nul
 )
 
-call "%VSWHERE%" >nul
+rem The compiler decides whether the environment is usable - vcvars can report
+rem a non zero error level even when everything is fine.
+where cl >nul 2>&1
 if errorlevel 1 (
-  echo [build] vcvars64 failed
+  echo [build] the MSVC compiler is not available
   exit /b 1
 )
 
@@ -48,4 +63,5 @@ if errorlevel 1 (
   exit /b 1
 )
 echo [build] ok -^> %OUT%\pivot.exe
+"%OUT%\pivot.exe" --version
 endlocal

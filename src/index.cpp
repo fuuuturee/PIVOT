@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
+#include <map>
 #include <sstream>
 
 #include "parsers/prefetch.h"
