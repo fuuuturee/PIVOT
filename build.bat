@@ -44,7 +44,9 @@ if /i "%MODE%"=="debug" (
   set "OPT=/Od /Zi /D_DEBUG"
   set "OUT=bin\debug"
 ) else (
-  set "OPT=/O2 /DNDEBUG /Zi"
+  rem static CRT so the released binary runs on any Windows 10+ without
+  redistributables
+  set "OPT=/O2 /DNDEBUG /Zi /MT"
   set "OUT=bin\release"
 )
 
