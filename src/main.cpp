@@ -1,9 +1,11 @@
 #include <cctype>
+#include <conio.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <io.h>
 #include <iostream>
 #include <map>
 #include <sstream>
@@ -363,9 +365,23 @@ void usage() {
         "  pivot unresolved [--store F] [--candidates F]\n"
         "  pivot timeline [--kind K] [--from ISO] [--to ISO] [--store F]\n"
         "  pivot records [--kind K] [--json F] [--store F]\n"
-        "  pivot stats [--store F]\n\n"
-        "identifier kinds: path: pfhash: vserial: richkey: richhash: imphash: md5: machine: mac:\n"
-        "  pivot --version\n");
+        "  pivot stats [--store F]\n"
+        "  pivot --version\n\n"
+        "identifier kinds: path: pfhash: vserial: richkey: richhash: imphash: md5: machine: mac:\n\n"
+        "get started:\n"
+        "  pivot ingest <folder> --store case.store --json case.json\n"
+        "  pivot ids --store case.store\n"
+        "  pivot show \"path:c:\\windows\\system32\\notepad.exe\" --store case.store -v\n");
+}
+
+// When the tool is started by double clicking the exe the console window would
+// close right away - keep it open until a key is pressed. Only done when both
+// streams are a console, so scripts and pipelines are never blocked.
+void wait_for_key() {
+    if (!_isatty(_fileno(stdin)) || !_isatty(_fileno(stdout))) return;
+    std::printf("\nPress any key to close this window . . .");
+    (void)_getch();
+    std::printf("\n");
 }
 
 }  // namespace
@@ -373,6 +389,7 @@ void usage() {
 int main(int argc, char** argv) {
     if (argc < 2) {
         usage();
+        wait_for_key();
         return 1;
     }
     std::string cmd = argv[1];
