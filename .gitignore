@@ -5,6 +5,7 @@ obj/
 *.pdb
 *.ilk
 *.exe
+build.log
 
 # case data / generated output
 *.store

@@ -63,6 +63,35 @@ std::string unix_to_iso(i64 sec) {
 
 std::string filetime_to_iso(u64 ft) { return unix_to_iso(filetime_to_unix(ft)); }
 
+i64 parse_iso_utc(const std::string& s) {
+    std::string t = trim(s);
+    if (t.empty()) return 0;
+    int y = 0, m = 0, d = 0, hh = 0, mm = 0, ss = 0;
+    int n = std::sscanf(t.c_str(), "%d-%d-%dT%d:%d:%d", &y, &m, &d, &hh, &mm, &ss);
+    if (n < 3) {
+        // also accept a plain date with a space separator
+        n = std::sscanf(t.c_str(), "%d-%d-%d %d:%d:%d", &y, &m, &d, &hh, &mm, &ss);
+        if (n < 3) return 0;
+    }
+    if (y < 1970 || y > 9999) return 0;
+    if (m < 1 || m > 12) return 0;
+    if (d < 1 || d > 31) return 0;
+    std::tm tm{};
+    tm.tm_year = y - 1900;
+    tm.tm_mon = m - 1;
+    tm.tm_mday = d;
+    tm.tm_hour = hh;
+    tm.tm_min = mm;
+    tm.tm_sec = ss;
+    tm.tm_isdst = 0;
+#if defined(_WIN32)
+    i64 sec = static_cast<i64>(_mkgmtime(&tm));
+#else
+    i64 sec = static_cast<i64>(timegm(&tm));
+#endif
+    return sec > 0 ? sec : 0;
+}
+
 // ---------------------------------------------------------------- files
 
 bool read_file(const std::string& path, std::vector<u8>& out) {

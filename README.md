@@ -25,6 +25,7 @@ could **not** be resolved.
 ## Table of contents
 
 - [Quick start](#quick-start)
+- [Graphical interface](#graphical-interface)
 - [Why "pivot"?](#why-pivot)
 - [Command reference](#command-reference)
 - [Identifier scheme](#identifier-scheme)
@@ -47,7 +48,7 @@ Requires Windows + MSVC (Visual Studio 2022 or newer, C++ workload).
 `build.bat` locates the toolchain itself.
 
 ```cmd
-build.bat release      :: -> bin\release\pivot.exe
+build.bat release      :: -> bin\release\pivot.exe + bin\release\pivot-gui.exe
 build.bat debug
 ```
 
@@ -116,7 +117,54 @@ time range : 2025-12-31T22:00:00Z .. 2026-01-01T00:00:00Z
 
 ---
 
-## Why "pivot"?
+## Graphical interface
+
+`pivot-gui.exe` is the Windows front end for the same engine — same parsers,
+same index, same store.
+
+```cmd
+bin\release\pivot-gui.exe
+```
+
+### Layout
+
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│ [Artefakte] [Store öffnen] [JSON-Export] [Unterordner] [Statistik] [⟲]  │  command bar
+│ Suchen: ____  Typ: [alle Typen ▾]  Zeit ab: ____  Zeit bis: ____  [Timeline]│  filter bar
+├────────────────┬───────────────────────────────┬───────────────────────────┤
+│ Identifier     │ Records                       │ Details                   │
+│ Typ│Ident│Recs │ Zeit│Typ│Titel│Quelle│Anker │ Feld│Wert                   │
+└────────────────┴───────────────────────────────┴───────────────────────────┘
+│ 8 records · 28 identifiers · 2026-01-01T00:00:00Z .. 2026-01-01T00:00:00Z  │  status bar
+```
+
+* **Identifier** — every pivot handle with its type and how many records carry
+  it. Click a row to pivot; double click copies the identifier.
+* **Records** — all records of the current pivot, sorted by time when the
+  *Timeline* filter is on. Click a column header to re-sort.
+* **Details** — the fields of the selected record, grouped into
+  *Allgemein / Zeit / Details / Identifier / Warnungen*. Click a group header
+  to fold it away.
+
+### Actions
+
+| Action | Button | Shortcut |
+|---|---|---|
+| Parse artifacts into the store | *Artefakte* | `Ctrl+I` |
+| Open an existing store | *Store öffnen* | `Ctrl+O` |
+| Export the current view as JSON | *JSON-Export* | `Ctrl+E` |
+| Copy the record list | — | `Ctrl+C` |
+| Focus the search box | — | `Ctrl+F` |
+| Reset all filters | *Zurücksetzen* | `Esc` |
+
+Right click a record for *copy*, *pivot* and *show in Explorer*.
+
+The GUI follows the Windows dark mode where the system provides it and stays
+light otherwise. Window size, column widths, filters and the last store path
+are remembered per user in `HKCU\Software\fuuuturee\PIVOT`.
+
+---
 
 In an investigation you rarely start with the question *"show me all Prefetch
 files"*. You start with one handle on the object — a path, a hash, a volume
@@ -298,9 +346,11 @@ struct Record {
 
 ```
 src/main.cpp              CLI, artifact detection, ingest
+src/gui/gui.cpp           Win32 GUI (command bar, filter bar, three panes)
+src/engine.{h,cpp}        shared engine: ingest, index, stats, export
 src/index.{h,cpp}         pivot index, hash resolution, timeline, store
 src/record.{h,cpp}        record model, identifiers, JSON
-src/util.{h,cpp}          byte readers, UTF-16, time conversion, MD5
+src/util.{h,cpp}          byte readers, UTF-16, time conversion, MD5, ISO-8601
 src/parsers/prefetch.*    SCCA parser + hash variants
 src/parsers/lnk.*         shell link parser
 src/parsers/pe.*          PE parser

@@ -98,6 +98,12 @@ inline u64 unix_to_filetime(i64 sec) {
 std::string unix_to_iso(i64 sec);
 std::string filetime_to_iso(u64 ft);
 
+// ISO-8601 -> unix epoch seconds (UTC).
+// Accepts "YYYY-MM-DD" as well as "YYYY-MM-DDTHH:MM:SS" (the trailing "Z" and
+// any offset are ignored). Returns 0 when the value cannot be parsed, which
+// the callers read as "no filter".
+i64 parse_iso_utc(const std::string& s);
+
 // ---------------------------------------------------------------- file helpers
 
 bool read_file(const std::string& path, std::vector<u8>& out);

@@ -13,10 +13,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "engine.h"
 #include "index.h"
-#include "parsers/lnk.h"
-#include "parsers/pe.h"
-#include "parsers/prefetch.h"
 #include "record.h"
 #include "util.h"
 
@@ -24,62 +22,9 @@ using namespace pv;
 
 namespace {
 
-constexpr const char* kVersion = "0.1.0";
-
-enum class Kind { Unknown, Prefetch, Lnk, Pe };
-
-const char* kind_name(Kind k) {
-    switch (k) {
-        case Kind::Prefetch: return "prefetch";
-        case Kind::Lnk: return "lnk";
-        case Kind::Pe: return "pe";
-        default: return "unknown";
-    }
-}
-
-Kind detect(const std::vector<u8>& d, const std::string& path) {
-    std::string ext = lower(path_extension(path));
-    if (ext == ".pf") return Kind::Prefetch;
-    if (ext == ".lnk") return Kind::Lnk;
-    if (ext == ".exe" || ext == ".dll" || ext == ".sys" || ext == ".ocx") return Kind::Pe;
-    if (d.size() >= 8 && (std::memcmp(d.data(), "SCCA", 4) == 0 || std::memcmp(d.data(), "MAM", 4) == 0))
-        return Kind::Prefetch;
-    if (d.size() >= 0x50 && d[0] == 'M' && d[1] == 'Z') return Kind::Pe;
-    if (d.size() >= 0x4C && rd32(d.data(), 0) == 0x4C && d[4] == 0x01 && d[5] == 0x14 && d[6] == 0x02)
-        return Kind::Lnk;
-    return Kind::Unknown;
-}
-
-// "NOTEPAD.EXE-1B67C0AE.pf" -> 0x1b67c0ae
-bool prefetch_hash_from_name(const std::string& path, u32& out) {
-    std::string base = path_basename(path);
-    std::size_t dot = base.find_last_of('.');
-    if (dot != std::string::npos) base = base.substr(0, dot);
-    std::size_t dash = base.find_last_of('-');
-    if (dash == std::string::npos) return false;
-    std::string h = base.substr(dash + 1);
-    if (h.size() != 8) return false;
-    for (char c : h)
-        if (!std::isxdigit(static_cast<unsigned char>(c))) return false;
-    out = static_cast<u32>(std::strtoul(h.c_str(), nullptr, 16));
-    return true;
-}
+constexpr const char* kVersion = "0.2.0";
 
 std::string default_store() { return "pivot.store"; }
-
-// key that makes ingesting the same artifact twice a no-op
-std::string record_key(const Record& r) {
-    std::string k = r.kind;
-    k += "|";
-    k += r.source;
-    k += "|";
-    k += r.title;
-    for (const auto& id : r.ids) {
-        k += "|";
-        k += id;
-    }
-    return k;
-}
 
 struct Args {
     std::vector<std::string> positional;
@@ -130,16 +75,7 @@ void print_record(const Record& r, bool verbose) {
 }
 
 int cmd_ingest(const Args& a) {
-    std::vector<std::string> files;
-    for (const auto& p : a.positional) {
-        std::error_code ec;
-        if (std::filesystem::is_directory(p, ec)) {
-            auto list = list_dir(p, a.recursive);
-            files.insert(files.end(), list.begin(), list.end());
-        } else {
-            files.push_back(p);
-        }
-    }
+    std::vector<std::string> files = expand_inputs(a.positional, a.recursive);
     if (files.empty()) {
         std::fprintf(stderr, "ingest: no input files\n");
         return 2;
@@ -149,59 +85,7 @@ int cmd_ingest(const Args& a) {
     load_store(a.store, records);
     size_t before = records.size();
 
-    std::unordered_set<std::string> seen;
-    seen.reserve(records.size() * 2 + 16);
-    for (const auto& r : records) seen.insert(record_key(r));
-
-    size_t ok = 0, skipped = 0, dup = 0;
-    for (const auto& f : files) {
-        std::vector<u8> data;
-        if (!read_file(f, data)) {
-            ++skipped;
-            continue;
-        }
-        Kind k = detect(data, f);
-        std::vector<Record> produced;
-        switch (k) {
-            case Kind::Prefetch: {
-                PrefetchInfo info;
-                if (parse_prefetch(data, info)) {
-                    prefetch_records(data, f, info, produced);
-                    u32 h = 0;
-                    if (prefetch_hash_from_name(f, h) && !produced.empty()) {
-                        produced[0].add("pf_hash", hex(h, 8));
-                        produced[0].add_id(id_u32("pfhash", h));
-                    }
-                }
-                break;
-            }
-            case Kind::Lnk: {
-                LnkInfo info;
-                if (parse_lnk(data, info)) lnk_records(f, info, produced);
-                break;
-            }
-            case Kind::Pe: {
-                PeInfo info;
-                if (parse_pe(data, info)) pe_records(f, info, produced);
-                break;
-            }
-            default:
-                break;
-        }
-        if (produced.empty()) {
-            ++skipped;
-            continue;
-        }
-        ++ok;
-        for (auto& r : produced) {
-            if (!seen.insert(record_key(r)).second) {
-                ++dup;
-                continue;
-            }
-            records.push_back(std::move(r));
-        }
-    }
-
+    IngestStats st = ingest_files(files, records);
     save_store(a.store, records);
 
     if (!a.json.empty()) {
@@ -214,8 +98,8 @@ int cmd_ingest(const Args& a) {
         for (const auto& r : records) o << record_to_json(r) << "\n";
     }
 
-    std::printf("ingested %zu files (%zu records, %zu skipped, %zu duplicates) -> %s\n", ok,
-                records.size() - before, skipped, dup, a.store.c_str());
+    std::printf("ingested %zu files (%zu records, %zu skipped, %zu duplicates) -> %s\n", st.files,
+                records.size() - before, st.skipped, st.duplicates, a.store.c_str());
     if (!a.json.empty()) std::printf("json export: %s\n", a.json.c_str());
     return 0;
 }
@@ -288,29 +172,8 @@ int cmd_unresolved(const Args& a) {
 
 int cmd_timeline(const Args& a) {
     Index idx = build_index(a);
-    i64 from = 0, to = 0;
-    // ISO dates are accepted as YYYY-MM-DD
-    auto parse_iso = [](const std::string& s) -> i64 {
-        if (s.empty()) return 0;
-        std::tm tm{};
-        int y = 0, m = 0, d = 0, hh = 0, mm = 0, ss = 0;
-        if (std::sscanf(s.c_str(), "%d-%d-%dT%d:%d:%d", &y, &m, &d, &hh, &mm, &ss) >= 3) {
-            tm.tm_year = y - 1900;
-            tm.tm_mon = m - 1;
-            tm.tm_mday = d;
-            tm.tm_hour = hh;
-            tm.tm_min = mm;
-            tm.tm_sec = ss;
-#if defined(_WIN32)
-            return static_cast<i64>(_mkgmtime(&tm));
-#else
-            return static_cast<i64>(timegm(&tm));
-#endif
-        }
-        return 0;
-    };
-    from = parse_iso(a.from);
-    to = parse_iso(a.to);
+    i64 from = parse_iso_utc(a.from);
+    i64 to = parse_iso_utc(a.to);
     auto tl = idx.timeline(a.kind, from, to);
     std::printf("%zu entries\n\n", tl.size());
     for (const auto* r : tl) print_record(*r, false);
